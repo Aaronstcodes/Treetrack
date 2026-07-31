@@ -108,9 +108,7 @@
 </footer>
 
 <script type="module">
-// UI-only logic — zero Firebase dependency, so the page always renders,
-// the password toggle and form switching always work, even if Firebase's
-// CDN is slow, blocked, or fails entirely.
+
 import { addAmbientLeaves, initCustomCursor } from "./js/effects.js";
 
 addAmbientLeaves(document.getElementById("leaf-layer"), 6);
@@ -139,8 +137,6 @@ setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 22
 </script>
 
 <script type="module">
-// Firebase-dependent logic — auth, Firestore reads/writes. Isolated in its
-// own module so a Firebase load failure can't also break the UI script above.
 import { db, auth, collection, query, where, getDocs, addDoc, serverTimestamp } from "./js/firebase-init.js";
 import { initAuth, login, signup, renderHeader, getUserProfile } from "./js/auth.js";
 import { showToast, celebrate, fallingLeaves, showSkeleton } from "./js/effects.js";
@@ -278,7 +274,6 @@ document.getElementById("add-tree-btn").onclick = async (e) => {
   const currentUser = auth.currentUser;
   const myProfile = currentUser ? await getUserProfile(currentUser.uid) : null;
 
-  // Optionally resolve a buddy's account by email, so their name becomes tappable too.
   let buddyUid = null, resolvedBuddyName = buddyName;
   if (buddyEmail) {
     const usersSnap = await getDocs(query(collection(db, "users"), where("email", "==", buddyEmail)));

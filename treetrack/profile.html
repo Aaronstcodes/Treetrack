@@ -132,9 +132,6 @@ initAuth(async (user, profile) => {
     buddySnap.forEach((d) => grid.appendChild(treeCard(d.id, d.data(), "Paired as buddy")));
   }
 
-  // Count logs they've personally submitted, across every tree (best-effort:
-  // walks each tree's logs subcollection rather than a collectionGroup query,
-  // so it works with zero extra Firestore index setup).
   const allTreesSnap = await getDocs(collection(db, "trees"));
   let logCount = 0;
   for (const treeDoc of allTreesSnap.docs) {
