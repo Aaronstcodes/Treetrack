@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TreeTrack — Profile</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  .profile-hero {
+    display: flex; align-items: center; gap: 18px; margin-bottom: 24px;
+  }
+  .profile-avatar {
+    width: 64px; height: 64px; border-radius: 50%;
+    border: 2px solid var(--ink); background: var(--paper-deep);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-weight: 700; font-size: 1.4rem; flex-shrink: 0;
+  }
+  .stat-pill {
+    display: inline-block; background: rgba(69,98,74,0.1); color: var(--moss);
+    font-family: var(--mono); font-size: 0.78rem; padding: 4px 12px;
+    border-radius: 20px; margin-right: 8px;
+  }
+</style>
+</head>
+<body>
+
+<div id="preloader"><div class="pl-stamp">🌳</div></div>
+
+<header class="topbar" id="topbar"></header>
+
+<main>
+  <div id="not-found" class="card" style="display:none;">Profile not found.</div>
+
+  <div id="profile-content" style="display:none;">
+    <div class="profile-hero">
+      <div class="profile-avatar" id="profile-initials"></div>
+      <div>
+        <h1 id="profile-name" style="margin:0;"></h1>
+        <p class="muted" id="profile-meta" style="margin:4px 0;"></p>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <span class="stat-pill"><span id="stat-adopted">0</span> trees adopted</span>
+      <span class="stat-pill"><span id="stat-buddy">0</span> trees as buddy</span>
+      <span class="stat-pill"><span id="stat-logs">0</span> logs submitted</span>
+    </div>
+
+    <div id="skeleton-wrap"></div>
+
+    <div id="adopted-section" style="display:none;">
+      <h3>Trees Adopted</h3>
+      <div id="adopted-grid" class="grid stagger" style="margin-bottom:24px;"></div>
+    </div>
+
+    <div id="buddy-section" style="display:none;">
+      <h3>Trees They're Paired With</h3>
+      <div id="buddy-grid" class="grid stagger"></div>
+    </div>
+  </div>
+</main>
+
+<footer class="app-footer">
+  Roots &amp; Relationships — Growing Trees. Growing Bonds.<br>
+  <a class="footer-site-link" href="https://trees4sjbhs.pages.dev" target="_blank" rel="noopener">Read the full proposal → trees4sjbhs.pages.dev</a>
+</footer>
+
+<script type="module">
+import { addAmbientLeaves, initCustomCursor } from "./js/effects.js";
+initCustomCursor();
+window.addEventListener("load", () => setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 300));
+</script>
+
+<script type="module">
+import { db, doc, getDoc, collection, query, where, getDocs } from "./js/firebase-init.js";
+import { initAuth, renderHeader } from "./js/auth.js";
+import { showSkeleton } from "./js/effects.js";
+
+const params = new URLSearchParams(window.location.search);
+const uid = params.get("uid");
+
+function initials(name) {
+  if (!name) return "?";
+  return name.trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+}
+
+function treeCard(id, t, roleLabel) {
+  const div = document.createElement("div");
+  div.className = "card lift tree-card";
+  div.innerHTML = `
+    <h3 style="margin-top:0;">${t.name} <span class="muted" style="font-weight:400;">(${t.species})</span></h3>
+    <p class="muted">Class ${t.classId} &middot; ${roleLabel}</p>
+    <a class="btn" href="tree.html?id=${id}">View tree</a>
+  `;
+  return div;
+}
+
+initAuth(async (user, profile) => {
+  renderHeader(profile);
+  if (!uid) { document.getElementById("not-found").style.display = "block"; return; }
+
+  const userSnap = await getDoc(doc(db, "users", uid));
+  if (!userSnap.exists()) { document.getElementById("not-found").style.display = "block"; return; }
+
+  const person = userSnap.data();
+  document.getElementById("profile-content").style.display = "block";
+  document.getElementById("profile-initials").textContent = initials(person.name);
+  document.getElementById("profile-name").textContent = person.name || "Unnamed";
+  document.getElementById("profile-meta").textContent =
+    `${person.role === "teacher" || person.role === "admin" ? "Teacher / Mentor" : "Student"}${person.classId ? " · Class " + person.classId : ""}`;
+
+  const skeletonEl = document.getElementById("skeleton-wrap");
+  const clearSkeleton = showSkeleton(skeletonEl, 2, "card");
+
+  const [adoptedSnap, buddySnap] = await Promise.all([
+    getDocs(query(collection(db, "trees"), where("adoptedByUid", "==", uid))),
+    getDocs(query(collection(db, "trees"), where("buddyUid", "==", uid))),
+  ]);
+  clearSkeleton();
+
+  document.getElementById("stat-adopted").textContent = adoptedSnap.size;
+  document.getElementById("stat-buddy").textContent = buddySnap.size;
+
+  if (!adoptedSnap.empty) {
+    document.getElementById("adopted-section").style.display = "block";
+    const grid = document.getElementById("adopted-grid");
+    adoptedSnap.forEach((d) => grid.appendChild(treeCard(d.id, d.data(), "Adopted by them")));
+  }
+  if (!buddySnap.empty) {
+    document.getElementById("buddy-section").style.display = "block";
+    const grid = document.getElementById("buddy-grid");
+    buddySnap.forEach((d) => grid.appendChild(treeCard(d.id, d.data(), "Paired as buddy")));
+  }
+
+  // Count logs they've personally submitted, across every tree (best-effort:
+  // walks each tree's logs subcollection rather than a collectionGroup query,
+  // so it works with zero extra Firestore index setup).
+  const allTreesSnap = await getDocs(collection(db, "trees"));
+  let logCount = 0;
+  for (const treeDoc of allTreesSnap.docs) {
+    const logsSnap = await getDocs(query(collection(db, "trees", treeDoc.id, "logs"), where("loggedBy", "==", uid)));
+    logCount += logsSnap.size;
+  }
+  document.getElementById("stat-logs").textContent = logCount;
+}, false);
+</script>
+
+</body>
+</html>

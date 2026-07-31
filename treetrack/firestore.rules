@@ -1,0 +1,53 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function myRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isStaff() {
+      return isSignedIn() && (myRole() == "teacher" || myRole() == "admin");
+    }
+
+    // Any signed-in user can read any profile — needed so tree pages can
+    // show tappable "adopted by" / "buddy" links to a student's profile.
+    // Writing your own profile is still self-only (or staff, for role changes).
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && request.auth.uid == userId;
+      allow update: if isSignedIn() && (request.auth.uid == userId || isStaff());
+    }
+
+    // Tree profiles are public to read (QR codes must work for anyone,
+    // logged in or not). Any signed-in user can adopt a new tree (students
+    // included — adoption is a class activity, not an admin action). Only
+    // staff can edit or delete an existing tree record (status changes,
+    // handovers) to keep that data trustworthy.
+    match /trees/{treeId} {
+      allow read: if true;
+      allow create: if isSignedIn();
+      allow update, delete: if isStaff();
+
+      // Any signed-in user (student or staff) can add a log entry.
+      // Logs are never edited or deleted once submitted, to keep the
+      // record trustworthy for the SIL report.
+      match /logs/{logId} {
+        allow read: if true;
+        allow create: if isSignedIn();
+        allow update, delete: if false;
+      }
+
+      // Only staff record a handover ("Passing the Torch").
+      match /handovers/{handoverId} {
+        allow read: if true;
+        allow create: if isStaff();
+        allow update, delete: if false;
+      }
+    }
+  }
+}

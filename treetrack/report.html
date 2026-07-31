@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TreeTrack — SIL Report</title>
+<link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+
+<div id="preloader"><div class="pl-stamp">🌳</div></div>
+
+<header class="topbar no-print" id="topbar"></header>
+
+<main>
+  <div id="denied" class="card" style="display:none;">You don't have access to this page.</div>
+
+  <div id="report-content" style="display:none;">
+    <button class="no-print secondary" id="print-btn" style="float:right;">Print / Save as PDF</button>
+    <h1>Roots &amp; Relationships — SIL Report</h1>
+    <p class="muted" id="report-date"></p>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Programme Summary</h3>
+      <p>Total trees adopted: <strong id="s-total"></strong></p>
+      <p>Overall survival rate: <strong id="s-survival"></strong></p>
+      <p>Total care logs recorded: <strong id="s-logs"></strong></p>
+      <p>Total buddy/partner visits recorded: <strong id="s-visits"></strong></p>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">By Class</h3>
+      <table>
+        <thead><tr><th>Class</th><th>Trees</th><th>Survival Rate</th><th>Buddy Visits</th></tr></thead>
+        <tbody id="class-table"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Tree-by-Tree Detail</h3>
+      <table>
+        <thead><tr><th>Tree</th><th>Class</th><th>Species</th><th>Status</th><th>Height</th><th>Girth</th><th>Logs</th></tr></thead>
+        <tbody id="tree-table"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer class="app-footer no-print">Roots &amp; Relationships — Growing Trees. Growing Bonds.<br><a class="footer-site-link" href="https://trees4sjbhs.pages.dev" target="_blank" rel="noopener">Read the full proposal → trees4sjbhs.pages.dev</a></footer>
+
+<script type="module">
+import { initCustomCursor } from "./js/effects.js";
+initCustomCursor();
+window.addEventListener("load", () => setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 300));
+</script>
+
+<script type="module">
+import { db, collection, getDocs } from "./js/firebase-init.js";
+import { initAuth, renderHeader } from "./js/auth.js";
+
+
+initAuth(async (user, profile) => {
+  renderHeader(profile);
+  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
+    document.getElementById("denied").style.display = "block";
+    return;
+  }
+  document.getElementById("report-content").style.display = "block";
+  document.getElementById("report-date").textContent = "Generated: " + new Date().toLocaleDateString();
+  document.getElementById("print-btn").onclick = () => window.print();
+
+  await buildReport();
+}, true);
+
+async function buildReport() {
+  const treesSnap = await getDocs(collection(db, "trees"));
+  const trees = [];
+  let totalLogs = 0, totalVisits = 0;
+  const byClass = {};
+
+  for (const d of treesSnap.docs) {
+    const t = d.data();
+    const logsSnap = await getDocs(collection(db, "trees", d.id, "logs"));
+    let careCount = 0, visitCount = 0;
+    logsSnap.forEach((l) => (l.data().type === "visit" ? visitCount++ : careCount++));
+    totalLogs += careCount; totalVisits += visitCount;
+
+    if (!byClass[t.classId]) byClass[t.classId] = { total: 0, alive: 0, visits: 0 };
+    byClass[t.classId].total += 1;
+    if (t.status !== "dead") byClass[t.classId].alive += 1;
+    byClass[t.classId].visits += visitCount;
+
+    trees.push({ ...t, id: d.id, careCount, visitCount });
+  }
+
+  const totalTrees = trees.length;
+  const aliveTrees = trees.filter((t) => t.status !== "dead").length;
+
+  document.getElementById("s-total").textContent = totalTrees;
+  document.getElementById("s-survival").textContent = totalTrees ? Math.round((aliveTrees / totalTrees) * 100) + "%" : "—";
+  document.getElementById("s-logs").textContent = totalLogs;
+  document.getElementById("s-visits").textContent = totalVisits;
+
+  document.getElementById("class-table").innerHTML = Object.entries(byClass).map(([classId, c]) => `
+    <tr><td>${classId}</td><td>${c.total}</td><td>${Math.round((c.alive / c.total) * 100)}%</td><td>${c.visits}</td></tr>
+  `).join("") || `<tr><td colspan="4" class="muted">No data yet.</td></tr>`;
+
+  document.getElementById("tree-table").innerHTML = trees.map((t) => `
+    <tr>
+      <td>${t.name}</td><td>${t.classId}</td><td>${t.species}</td>
+      <td>${t.status === "dead" ? "Lost" : "Alive"}</td>
+      <td>${t.height || "—"} cm</td><td>${t.girth || "—"} cm</td>
+      <td>${t.careCount} care / ${t.visitCount} visits</td>
+    </tr>
+  `).join("") || `<tr><td colspan="7" class="muted">No trees yet.</td></tr>`;
+}
+</script>
+
+</body>
+</html>

@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TreeTrack — Admin Dashboard</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  .stat-card { text-align: center; }
+  .stat-num {
+    font-family: var(--mono); font-weight: 700; font-size: 2.1rem; color: var(--ink);
+    display: block; font-variant-numeric: tabular-nums;
+  }
+  .stat-lbl { font-family: var(--mono); font-size: 0.75rem; color: var(--moss); text-transform: uppercase; }
+</style>
+</head>
+<body>
+
+<div id="preloader"><div class="pl-stamp">🌳</div></div>
+
+<header class="topbar" id="topbar"></header>
+
+<main>
+  <h1>Admin Dashboard</h1>
+  <p class="muted">Overview across all adopted trees. Trees with no log in the last 7 days are flagged.</p>
+
+  <div id="denied" class="card" style="display:none;">You don't have access to this page.</div>
+
+  <div id="admin-content" style="display:none;">
+    <div class="grid stagger" style="grid-template-columns: repeat(3, 1fr); margin-bottom:20px;">
+      <div class="card lift stat-card"><span class="stat-num" id="stat-total">0</span><span class="stat-lbl">Total trees</span></div>
+      <div class="card lift stat-card"><span class="stat-num" id="stat-alive">0</span><span class="stat-lbl">Alive</span></div>
+      <div class="card lift stat-card"><span class="stat-num" id="stat-flagged">0</span><span class="stat-lbl">Flagged</span></div>
+    </div>
+
+    <div class="card">
+      <table>
+        <thead><tr><th>Tree</th><th>Class</th><th>Buddy</th><th>Status</th><th>Last Log</th><th></th></tr></thead>
+        <tbody id="admin-table"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer class="app-footer">Roots &amp; Relationships — Growing Trees. Growing Bonds.<br><a class="footer-site-link" href="https://trees4sjbhs.pages.dev" target="_blank" rel="noopener">Read the full proposal → trees4sjbhs.pages.dev</a></footer>
+
+<script type="module">
+import { initCustomCursor } from "./js/effects.js";
+initCustomCursor();
+window.addEventListener("load", () => setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 300));
+</script>
+
+<script type="module">
+import { db, collection, getDocs } from "./js/firebase-init.js";
+import { initAuth, renderHeader } from "./js/auth.js";
+
+function countUp(el, target) {
+  const dur = 700, start = performance.now();
+  function tick(now) {
+    const p = Math.min((now - start) / dur, 1);
+    el.textContent = Math.round(target * (1 - Math.pow(1 - p, 3)));
+    if (p < 1) requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+}
+
+initAuth(async (user, profile) => {
+  renderHeader(profile);
+
+  if (!profile || (profile.role !== "teacher" && profile.role !== "admin")) {
+    document.getElementById("denied").style.display = "block";
+    return;
+  }
+  document.getElementById("admin-content").style.display = "block";
+
+  const snap = await getDocs(collection(db, "trees"));
+  let total = 0, alive = 0, flagged = 0;
+  const rows = [];
+
+  snap.forEach((d) => {
+    const t = d.data();
+    total += 1;
+    if (t.status !== "dead") alive += 1;
+    const daysSinceLog = t.lastLogAt ? Math.floor((Date.now() - t.lastLogAt.toDate()) / 86400000) : null;
+    const isFlagged = daysSinceLog === null || daysSinceLog > 7;
+    if (isFlagged) flagged += 1;
+    rows.push({ name: t.name, classId: t.classId, buddy: t.buddyName || "—", status: t.status, daysSinceLog, isFlagged, id: d.id });
+  });
+
+  countUp(document.getElementById("stat-total"), total);
+  countUp(document.getElementById("stat-alive"), alive);
+  countUp(document.getElementById("stat-flagged"), flagged);
+
+  rows.sort((a, b) => (b.isFlagged - a.isFlagged));
+
+  document.getElementById("admin-table").innerHTML = rows.map((r, i) => `
+    <tr style="animation: row-in 0.4s ease both; animation-delay:${Math.min(i * 0.03, 0.4)}s;">
+      <td>${r.name}</td>
+      <td>${r.classId}</td>
+      <td>${r.buddy}</td>
+      <td>${r.status === "dead" ? '<span class="status-dead">Lost</span>' : '<span class="status-alive">Alive</span>'}</td>
+      <td>${r.daysSinceLog === null ? "Never logged" : r.daysSinceLog + " days ago"}
+        ${r.isFlagged ? '<span class="badge bad">Overdue</span>' : '<span class="badge">OK</span>'}</td>
+      <td><a href="tree.html?id=${r.id}">Open</a></td>
+    </tr>
+  `).join("") || `<tr><td colspan="6" class="muted">No trees yet.</td></tr>`;
+}, true);
+</script>
+<style>
+  @keyframes row-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+</style>
+
+</body>
+</html>

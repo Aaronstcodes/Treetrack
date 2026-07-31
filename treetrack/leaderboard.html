@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TreeTrack — Leaderboard</title>
+<link rel="stylesheet" href="css/style.css" />
+<style>
+  .rank-row {
+    display: grid; grid-template-columns: 50px 1fr 90px 110px 130px;
+    align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--line);
+    opacity: 0; transform: translateX(-10px);
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .rank-row { animation: rank-in 0.5s var(--ease) forwards; }
+  }
+  @keyframes rank-in { to { opacity: 1; transform: none; } }
+  .rank-row.gold { background: rgba(181,80,42,0.06); }
+  .rank-num { font-family: var(--mono); font-weight: 700; color: var(--moss); }
+  .rank-row.gold .rank-num { color: var(--stamp); }
+  .rank-bar-wrap { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; }
+  .rank-bar { height: 100%; background: var(--moss); width: 0%; transition: width 1s var(--ease); border-radius: 3px; }
+  @media (max-width: 640px) {
+    .rank-row { grid-template-columns: 34px 1fr 60px; row-gap: 6px; }
+    .rank-row .hide-mobile { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<div id="preloader"><div class="pl-stamp">🌳</div></div>
+
+<header class="topbar" id="topbar"></header>
+
+<main>
+  <h1>Leaderboard</h1>
+  <p class="muted">Ranked by tree survival rate, then logging consistency.</p>
+
+  <div class="card" style="padding:0;overflow:hidden;">
+    <div class="rank-row" style="border-bottom:2px solid var(--ink); opacity:1; transform:none;">
+      <span></span>
+      <span style="font-family:var(--mono); font-size:0.75rem; color:var(--moss); text-transform:uppercase;">Class</span>
+      <span style="font-family:var(--mono); font-size:0.75rem; color:var(--moss); text-transform:uppercase;">Trees</span>
+      <span style="font-family:var(--mono); font-size:0.75rem; color:var(--moss); text-transform:uppercase;">Survival</span>
+      <span style="font-family:var(--mono); font-size:0.75rem; color:var(--moss); text-transform:uppercase;">Logging</span>
+    </div>
+    <div id="leaderboard-body"></div>
+  </div>
+</main>
+
+<footer class="app-footer">Roots &amp; Relationships — Growing Trees. Growing Bonds.<br><a class="footer-site-link" href="https://trees4sjbhs.pages.dev" target="_blank" rel="noopener">Read the full proposal → trees4sjbhs.pages.dev</a></footer>
+
+<script type="module">
+import { initCustomCursor } from "./js/effects.js";
+initCustomCursor();
+window.addEventListener("load", () => setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 300));
+</script>
+
+<script type="module">
+import { db, collection, getDocs } from "./js/firebase-init.js";
+import { initAuth, renderHeader } from "./js/auth.js";
+import { showSkeleton } from "./js/effects.js";
+
+initAuth(async (user, profile) => {
+  renderHeader(profile);
+  await buildLeaderboard();
+}, true);
+
+async function buildLeaderboard() {
+  const bodyEl = document.getElementById("leaderboard-body");
+  const clearSkeleton = showSkeleton(bodyEl, 4, "row");
+  const snap = await getDocs(collection(db, "trees"));
+  const byClass = {};
+
+  snap.forEach((d) => {
+    const t = d.data();
+    if (!byClass[t.classId]) byClass[t.classId] = { total: 0, alive: 0, upToDate: 0 };
+    const c = byClass[t.classId];
+    c.total += 1;
+    if (t.status !== "dead") c.alive += 1;
+    const daysSinceLog = t.lastLogAt ? Math.floor((Date.now() - t.lastLogAt.toDate()) / 86400000) : 999;
+    if (daysSinceLog <= 7) c.upToDate += 1;
+  });
+
+  const rows = Object.entries(byClass).map(([classId, c]) => ({
+    classId, total: c.total,
+    survivalRate: c.total ? Math.round((c.alive / c.total) * 100) : 0,
+    loggingRate: c.total ? Math.round((c.upToDate / c.total) * 100) : 0,
+  }));
+  rows.sort((a, b) => b.survivalRate - a.survivalRate || b.loggingRate - a.loggingRate);
+
+  const body = document.getElementById("leaderboard-body");
+  clearSkeleton();
+  if (!rows.length) {
+    body.innerHTML = `<p class="muted" style="padding:20px;">No trees logged yet.</p>`;
+    return;
+  }
+
+  body.innerHTML = rows.map((r, i) => `
+    <div class="rank-row ${i === 0 ? "gold" : ""}" style="animation-delay:${i * 0.06}s;">
+      <span class="rank-num">#${i + 1}</span>
+      <span>${r.classId}</span>
+      <span class="hide-mobile">${r.total}</span>
+      <div>
+        <div class="rank-bar-wrap"><div class="rank-bar" data-target="${r.survivalRate}" style="background:var(--moss);"></div></div>
+        <span class="muted" style="font-size:0.78rem;">${r.survivalRate}%</span>
+      </div>
+      <div class="hide-mobile">
+        <div class="rank-bar-wrap"><div class="rank-bar" data-target="${r.loggingRate}" style="background:var(--stamp);"></div></div>
+        <span class="muted" style="font-size:0.78rem;">${r.loggingRate}%</span>
+      </div>
+    </div>
+  `).join("");
+
+  // Animate bars in after paint
+  requestAnimationFrame(() => {
+    setTimeout(() => {
+      document.querySelectorAll(".rank-bar").forEach((bar) => {
+        bar.style.width = bar.dataset.target + "%";
+      });
+    }, 250);
+  });
+}
+</script>
+
+</body>
+</html>

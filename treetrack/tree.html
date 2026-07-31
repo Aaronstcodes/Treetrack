@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>TreeTrack — Tree Profile</title>
+<link rel="stylesheet" href="css/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+<style>
+  .tree-hero {
+    display: flex; align-items: center; gap: 18px; margin-bottom: 24px;
+  }
+  .tree-hero .ring {
+    width: 64px; height: 64px; flex-shrink: 0;
+  }
+  .tree-hero .ring svg circle { fill: none; stroke: var(--ink); }
+  @media (prefers-reduced-motion: no-preference) {
+    .tree-hero .ring svg circle { animation: ring-draw 0.8s ease-out forwards; }
+    .tree-hero .ring svg circle:nth-child(1) { animation-delay: 0.05s; }
+    .tree-hero .ring svg circle:nth-child(2) { animation-delay: 0.18s; }
+    .tree-hero .ring svg circle:nth-child(3) { animation-delay: 0.31s; }
+  }
+  @keyframes ring-draw { to { stroke-dashoffset: 0; } }
+  .upload-progress {
+    height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; margin-bottom: 10px; display: none;
+  }
+  .upload-progress .bar {
+    height: 100%; width: 0%; background: var(--moss); transition: width 0.3s var(--ease);
+  }
+  #log-history tr { animation: row-in 0.4s var(--ease) both; }
+  @keyframes row-in { from { opacity: 0; transform: translateX(-6px); } to { opacity: 1; transform: none; } }
+</style>
+</head>
+<body>
+
+<div id="preloader"><div class="pl-stamp">🌳</div></div>
+
+<header class="topbar" id="topbar"></header>
+
+<main>
+  <div id="not-found" class="card" style="display:none;">Tree not found.</div>
+
+  <div id="tree-content" style="display:none;">
+    <div class="tree-hero">
+      <div class="ring">
+        <svg width="64" height="64" viewBox="0 0 64 64">
+          <circle cx="32" cy="32" r="10" stroke-width="1.4" style="stroke-dasharray:62.8; stroke-dashoffset:62.8;" />
+          <circle cx="32" cy="32" r="18" stroke-width="1.8" style="stroke-dasharray:113; stroke-dashoffset:113;" />
+          <circle cx="32" cy="32" r="26" stroke-width="1.2" style="stroke-dasharray:163.4; stroke-dashoffset:163.4;" />
+        </svg>
+      </div>
+      <div>
+        <h1 id="tree-name" style="margin:0;"></h1>
+        <p class="muted" id="tree-meta" style="margin:2px 0;"></p>
+        <p id="tree-status" style="margin:0;"></p>
+      </div>
+    </div>
+
+    <div class="grid stagger" style="grid-template-columns: 1.3fr 1fr;">
+      <div class="card lift">
+        <h3 style="margin-top:0;">Growth</h3>
+        <canvas id="growth-chart" height="160"></canvas>
+      </div>
+      <div class="card lift" style="text-align:center;">
+        <h3 style="margin-top:0;">QR Code</h3>
+        <div id="qr-canvas"></div>
+        <p class="muted">Scan to open this page directly</p>
+      </div>
+    </div>
+
+    <div class="card no-print" id="log-form-card" style="display:none;">
+      <h3 style="margin-top:0;">Log an update</h3>
+      <div class="error-msg" id="log-error"></div>
+      <div class="success-msg" id="log-success"></div>
+      <label>Log type</label>
+      <select id="log-type">
+        <option value="care">Weekly care (watering / cleaning / growth)</option>
+        <option value="visit">Buddy / partner visit</option>
+      </select>
+
+      <div id="care-fields">
+        <div class="grid" style="grid-template-columns: 1fr 1fr;">
+          <div><label>Height (cm)</label><input type="number" id="log-height" /></div>
+          <div><label>Girth (cm)</label><input type="number" id="log-girth" /></div>
+        </div>
+        <label>Photo (required)</label>
+        <input type="file" id="log-photo" accept="image/*" />
+        <div class="upload-progress" id="upload-progress"><div class="bar" id="upload-bar"></div></div>
+      </div>
+
+      <label>Notes</label>
+      <textarea id="log-notes" rows="3" placeholder="What did you do today?"></textarea>
+      <button id="submit-log-btn">Submit log</button>
+    </div>
+
+    <div class="card no-print" id="admin-actions" style="display:none;">
+      <h3 style="margin-top:0;">Admin actions</h3>
+      <div class="grid" style="grid-template-columns: 1fr 1fr auto;">
+        <div><label>Mark status</label>
+          <select id="status-select">
+            <option value="alive">Alive</option>
+            <option value="dead">Lost / replaced</option>
+          </select>
+        </div>
+        <div><label>Pass the Torch — new class</label><input id="handover-class" placeholder="XI-C" /></div>
+        <div style="align-self:end;"><button id="save-status-btn">Save</button></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3 style="margin-top:0;">Log history</h3>
+      <table>
+        <thead><tr><th>Date</th><th>Type</th><th>Height</th><th>Girth</th><th>Notes</th><th>Photo</th></tr></thead>
+        <tbody id="log-history"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<footer class="app-footer">Roots &amp; Relationships — Growing Trees. Growing Bonds.<br><a class="footer-site-link" href="https://trees4sjbhs.pages.dev" target="_blank" rel="noopener">Read the full proposal → trees4sjbhs.pages.dev</a></footer>
+
+<script type="module">
+import { initCustomCursor } from "./js/effects.js";
+initCustomCursor();
+window.addEventListener("load", () => setTimeout(() => document.getElementById("preloader")?.classList.add("done"), 300));
+</script>
+
+<script type="module">
+import {
+  db, auth, doc, getDoc, updateDoc, collection, addDoc, getDocs,
+  query, orderBy, serverTimestamp,
+} from "./js/firebase-init.js";
+import { initAuth, renderHeader } from "./js/auth.js";
+import { SITE_URL } from "./js/firebase-config.js";
+import { uploadPhotoToCloudinary } from "./js/cloudinary-config.js";
+import { showToast, celebrate } from "./js/effects.js";
+
+const params = new URLSearchParams(window.location.search);
+const treeId = params.get("id");
+let chart;
+
+initAuth(async (user, profile) => {
+  renderHeader(profile);
+  if (!treeId) { document.getElementById("not-found").style.display = "block"; return; }
+
+  const snap = await getDoc(doc(db, "trees", treeId));
+  if (!snap.exists()) { document.getElementById("not-found").style.display = "block"; return; }
+
+  const tree = snap.data();
+  document.getElementById("tree-content").style.display = "block";
+  document.getElementById("tree-name").textContent = `${tree.name} (${tree.species})`;
+  const buddyLabel = tree.buddyUid
+    ? `<a href="profile.html?uid=${tree.buddyUid}">${tree.buddyName || "View profile"}</a>`
+    : (tree.buddyName || "—");
+  const adopterLabel = tree.adoptedByUid
+    ? `<a href="profile.html?uid=${tree.adoptedByUid}">${tree.adoptedByName || "View profile"}</a>`
+    : (tree.adoptedByName || "—");
+  document.getElementById("tree-meta").innerHTML = `Class ${tree.classId} · Adopted by: ${adopterLabel} · Buddy: ${buddyLabel} (${tree.buddyType === "partner" ? "Community partner" : "Junior buddy"})`;
+  document.getElementById("tree-status").innerHTML = tree.status === "dead"
+    ? `<span class="status-dead">● Lost / replaced</span>`
+    : `<span class="status-alive">● Alive</span>`;
+
+  new QRCode(document.getElementById("qr-canvas"), {
+    text: `${SITE_URL}/tree.html?id=${treeId}`,
+    width: 150, height: 150,
+    colorDark: "#1F3A2E", colorLight: "#EDE8D6",
+  });
+
+  if (user) {
+    document.getElementById("log-form-card").style.display = "block";
+    if (profile && (profile.role === "teacher" || profile.role === "admin")) {
+      document.getElementById("admin-actions").style.display = "block";
+      document.getElementById("status-select").value = tree.status;
+    }
+  }
+
+  await loadLogs(tree);
+
+  document.getElementById("log-type").addEventListener("change", (e) => {
+    document.getElementById("care-fields").style.display = e.target.value === "care" ? "block" : "none";
+  });
+
+  document.getElementById("submit-log-btn").onclick = async () => {
+    await submitLog(user, profile, tree);
+  };
+
+  document.getElementById("save-status-btn").onclick = async () => {
+    const newStatus = document.getElementById("status-select").value;
+    const newClass = document.getElementById("handover-class").value.trim();
+    const updates = { status: newStatus };
+    if (newClass) {
+      await addDoc(collection(db, "trees", treeId, "handovers"), {
+        fromClassId: tree.classId, toClassId: newClass, date: serverTimestamp(),
+      });
+      updates.classId = newClass;
+    }
+    await updateDoc(doc(db, "trees", treeId), updates);
+    window.location.reload();
+  };
+}, false);
+
+async function loadLogs(tree) {
+  const historyBodyEl = document.getElementById("log-history");
+  historyBodyEl.innerHTML = `<tr><td colspan="6" style="padding:4px 0;"><div class="skeleton skeleton-row"></div><div class="skeleton skeleton-row"></div></td></tr>`;
+
+  const logsSnap = await getDocs(query(collection(db, "trees", treeId, "logs"), orderBy("createdAt", "asc")));
+  const rows = [];
+  const chartLabels = [], heights = [], girths = [];
+
+  logsSnap.forEach((d) => {
+    const l = d.data();
+    const dateStr = l.createdAt ? l.createdAt.toDate().toLocaleDateString() : "—";
+    rows.push(`<tr>
+      <td>${dateStr}</td>
+      <td>${l.type === "visit" ? "Buddy visit" : "Care"}</td>
+      <td>${l.height ?? "—"}</td>
+      <td>${l.girth ?? "—"}</td>
+      <td>${l.notes || "—"}</td>
+      <td>${l.photoURL ? `<a href="${l.photoURL}" target="_blank">View</a>` : "—"}</td>
+    </tr>`);
+    if (l.type === "care") {
+      chartLabels.push(dateStr);
+      heights.push(l.height || null);
+      girths.push(l.girth || null);
+    }
+  });
+
+  const historyBody = document.getElementById("log-history");
+  historyBody.innerHTML = rows.reverse().join("") || `<tr><td colspan="6" class="muted">No logs yet.</td></tr>`;
+  // Stagger the row-in animation
+  [...historyBody.children].forEach((row, i) => { row.style.animationDelay = `${Math.min(i * 0.04, 0.4)}s`; });
+
+  const ctx = document.getElementById("growth-chart");
+  chart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: chartLabels,
+      datasets: [
+        { label: "Height (cm)", data: heights, borderColor: "#45624A", backgroundColor: "rgba(69,98,74,0.08)", fill: true, tension: 0.35 },
+        { label: "Girth (cm)", data: girths, borderColor: "#B5502A", backgroundColor: "rgba(181,80,42,0.06)", fill: true, tension: 0.35 },
+      ],
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 900, easing: "easeOutCubic" },
+      plugins: { legend: { position: "bottom", labels: { font: { family: "Inter" } } } },
+      scales: {
+        x: { grid: { color: "#C9C2A6" }, ticks: { font: { family: "JetBrains Mono", size: 10 } } },
+        y: { grid: { color: "#C9C2A6" }, ticks: { font: { family: "JetBrains Mono", size: 10 } } },
+      },
+    },
+  });
+}
+
+async function submitLog(user, profile, tree) {
+  const type = document.getElementById("log-type").value;
+  const notes = document.getElementById("log-notes").value.trim();
+  const errorEl = document.getElementById("log-error");
+  const successEl = document.getElementById("log-success");
+  const submitBtn = document.getElementById("submit-log-btn");
+  errorEl.textContent = ""; successEl.textContent = "";
+
+  const logData = {
+    type, notes,
+    loggedBy: user.uid,
+    loggedByName: profile?.name || user.email,
+    createdAt: serverTimestamp(),
+  };
+
+  if (type === "care") {
+    const height = parseFloat(document.getElementById("log-height").value);
+    const girth = parseFloat(document.getElementById("log-girth").value);
+    const photoFile = document.getElementById("log-photo").files[0];
+
+    if (!photoFile) { errorEl.textContent = "A photo is required for weekly care logs."; return; }
+
+    const progressWrap = document.getElementById("upload-progress");
+    const progressBar = document.getElementById("upload-bar");
+    progressWrap.style.display = "block";
+    progressBar.style.width = "15%";
+    submitBtn.textContent = "Uploading"; submitBtn.classList.add("dots"); submitBtn.disabled = true;
+
+    let photoURL;
+    try {
+      progressBar.style.width = "55%";
+      photoURL = await uploadPhotoToCloudinary(photoFile);
+      progressBar.style.width = "100%";
+    } catch (err) {
+      errorEl.textContent = "Photo upload failed: " + err.message;
+      submitBtn.textContent = "Submit log"; submitBtn.classList.remove("dots"); submitBtn.disabled = false;
+      progressWrap.style.display = "none";
+      return;
+    }
+
+    logData.height = height || null;
+    logData.girth = girth || null;
+    logData.photoURL = photoURL;
+
+    await updateDoc(doc(db, "trees", treeId), {
+      height: height || tree.height,
+      girth: girth || tree.girth,
+      lastLogAt: serverTimestamp(),
+    });
+  }
+
+  await addDoc(collection(db, "trees", treeId, "logs"), logData);
+  successEl.textContent = "Logged! Refreshing…";
+  celebrate(submitBtn);
+  showToast("Update logged 🌱", "success");
+  setTimeout(() => window.location.reload(), 700);
+}
+</script>
+
+</body>
+</html>
