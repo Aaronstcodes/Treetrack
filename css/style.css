@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;1,9..144,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
+/* palette + type scale for the whole app. paper/ink/moss/stamp names because
+   that's basically how i think about this thing - old field notebook, not a dashboard */
 :root {
   --paper: #EDE8D6;
   --paper-deep: #E2DBC4;
@@ -8,6 +10,7 @@
   --stamp: #B5502A;
   --line: #C9C2A6;
   --danger: #B3261E;
+  --ring-empty: #D8D0B4;
 
   --serif: 'Fraunces', serif;
   --sans: 'Inter', -apple-system, sans-serif;
@@ -30,7 +33,6 @@ body {
 a { color: var(--moss); }
 :focus-visible { outline: 2px solid var(--stamp); outline-offset: 2px; }
 
-/* ================= TOPBAR ================= */
 header.topbar {
   display: flex; align-items: center; justify-content: space-between;
   padding: 16px 28px;
@@ -38,9 +40,7 @@ header.topbar {
   border-bottom: 1px solid var(--line);
   position: sticky; top: 0; z-index: 50;
 }
-header.topbar .brand {
-  font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink);
-}
+header.topbar .brand { font-family: var(--mono); font-weight: 700; font-size: 1rem; color: var(--ink); }
 header.topbar .brand span { color: var(--stamp); }
 header.topbar nav { display: flex; gap: 20px; align-items: center; }
 header.topbar nav a {
@@ -54,10 +54,8 @@ header.topbar nav a::after {
 header.topbar nav a:hover::after { width: 100%; }
 
 main { max-width: 980px; margin: 0 auto; padding: 32px 24px 70px; }
-
 h1, h2, h3 { font-family: var(--serif); color: var(--ink); font-weight: 600; }
 
-/* ================= CARD ================= */
 .card {
   background: var(--paper-deep);
   border: 1px solid var(--line);
@@ -68,32 +66,25 @@ h1, h2, h3 { font-family: var(--serif); color: var(--ink); font-weight: 600; }
 }
 .card.lift:hover { transform: translateY(-3px); box-shadow: 4px 6px 0 rgba(31,58,46,0.08); }
 
+/* card-in stagger - kept the delays slightly uneven on purpose, looks less machine-timed */
 @media (prefers-reduced-motion: no-preference) {
-  .stagger > * {
-    opacity: 0; transform: translateY(14px);
-    animation: card-in 0.5s var(--ease) forwards;
-  }
-  .stagger > *:nth-child(1) { animation-delay: 0.03s; }
-  .stagger > *:nth-child(2) { animation-delay: 0.08s; }
-  .stagger > *:nth-child(3) { animation-delay: 0.13s; }
-  .stagger > *:nth-child(4) { animation-delay: 0.18s; }
-  .stagger > *:nth-child(5) { animation-delay: 0.23s; }
-  .stagger > *:nth-child(6) { animation-delay: 0.28s; }
-  .stagger > *:nth-child(n+7) { animation-delay: 0.33s; }
+  .stagger > * { opacity: 0; transform: translateY(14px); animation: card-in 0.5s var(--ease) forwards; }
+  .stagger > *:nth-child(1) { animation-delay: .02s; }
+  .stagger > *:nth-child(2) { animation-delay: .09s; }
+  .stagger > *:nth-child(3) { animation-delay: .12s; }
+  .stagger > *:nth-child(4) { animation-delay: .21s; }
+  .stagger > *:nth-child(5) { animation-delay: .24s; }
+  .stagger > *:nth-child(6) { animation-delay: .31s; }
+  .stagger > *:nth-child(n+7) { animation-delay: .35s; }
 }
 @keyframes card-in { to { opacity: 1; transform: none; } }
 
 .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 16px; }
 
-/* ================= TREE CARD ================= */
-.tree-card {
-  border-left: 3px solid var(--moss);
-  position: relative; overflow: hidden;
-}
+.tree-card { border-left: 3px solid var(--moss); position: relative; overflow: hidden; }
 .tree-card::before {
   content: "🌳"; position: absolute; right: -6px; top: -10px;
-  font-size: 3.2rem; opacity: 0.06; transform: rotate(-8deg);
-  pointer-events: none;
+  font-size: 3.2rem; opacity: 0.06; transform: rotate(-8deg); pointer-events: none;
 }
 .tree-card.dead { border-left-color: var(--danger); }
 .status-alive { color: var(--moss); font-weight: 600; font-family: var(--mono); font-size: 0.85rem; }
@@ -110,22 +101,67 @@ h1, h2, h3 { font-family: var(--serif); color: var(--ink); font-weight: 600; }
 }
 @keyframes pulse-badge { 0%,100% { opacity: 1; } 50% { opacity: 0.55; } }
 
-/* ================= BUTTONS ================= */
+/* --- new: growth ring indicator ---
+   used instead of a plain progress bar wherever we show "points toward next
+   level" or "% of log-ins this term done". tree rings felt more on-theme
+   than a bootstrap-y bar. pass --pct (0-100) inline from JS. */
+.ring-progress {
+  --pct: 0;
+  --ring-size: 64px;
+  width: var(--ring-size); height: var(--ring-size);
+  position: relative; flex-shrink: 0;
+}
+.ring-progress svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+.ring-progress circle {
+  fill: none; stroke-width: 5;
+}
+.ring-progress .ring-track { stroke: var(--ring-empty); }
+.ring-progress .ring-fill {
+  stroke: var(--moss);
+  stroke-linecap: round;
+  stroke-dasharray: 163.36; /* 2 * pi * r(26) */
+  stroke-dashoffset: calc(163.36 - (163.36 * var(--pct) / 100));
+  transition: stroke-dashoffset 0.7s var(--ease-spring);
+}
+.ring-progress.milestone .ring-fill { stroke: var(--stamp); }
+.ring-progress .ring-label {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-family: var(--mono); font-size: 0.7rem; font-weight: 700; color: var(--ink);
+}
+.ring-progress-row { display: flex; align-items: center; gap: 14px; }
+.ring-progress-row .ring-caption { font-family: var(--mono); font-size: 0.78rem; color: var(--moss); }
+.ring-progress-row .ring-caption strong { color: var(--ink); display: block; font-size: 0.92rem; font-family: var(--sans); }
+
+/* --- new: torn page divider ---
+   swap in for a plain <hr> or border-top between sections of report.html /
+   the admin dashboard, so it reads like a ledger page tearing rather than
+   a css line. pure css, no image asset needed. */
+.torn-divider {
+  position: relative; height: 14px; margin: 30px 0;
+  background:
+    linear-gradient(135deg, var(--paper) 50%, transparent 50%) 0 0,
+    linear-gradient(-135deg, var(--paper) 50%, transparent 50%) 0 0;
+  background-size: 14px 14px;
+  background-repeat: repeat-x;
+  background-color: var(--line);
+  opacity: 0.7;
+}
+.torn-divider.deep { background-color: var(--moss); opacity: 0.35; }
+
 button, .btn {
   font-family: var(--mono); font-size: 0.86rem;
   background: var(--ink); color: var(--paper);
   border: 1px solid var(--ink); padding: 10px 20px; border-radius: 3px;
   cursor: pointer; text-decoration: none; display: inline-block;
   transition: background 0.25s var(--ease), transform 0.2s var(--ease-spring), box-shadow 0.25s var(--ease);
+  position: relative; overflow: hidden;
 }
 button:hover, .btn:hover { background: var(--moss); border-color: var(--moss); transform: translateY(-1px); }
 button:active, .btn:active { transform: translateY(0px) scale(0.98); }
 button.secondary, .btn.secondary { background: transparent; color: var(--ink); border-color: var(--line); }
 button.secondary:hover { background: rgba(31,58,46,0.06); }
 button.danger { background: var(--danger); border-color: var(--danger); }
-button { position: relative; }
 
-/* ================= FORMS ================= */
 input, select, textarea {
   width: 100%; padding: 10px 12px;
   border: 1px solid var(--line); border-radius: 3px;
@@ -135,15 +171,13 @@ input, select, textarea {
   transition: border-color 0.2s var(--ease), box-shadow 0.2s var(--ease);
 }
 input:focus, select:focus, textarea:focus {
-  outline: none; border-color: var(--moss);
-  box-shadow: 0 0 0 3px rgba(69,98,74,0.12);
+  outline: none; border-color: var(--moss); box-shadow: 0 0 0 3px rgba(69,98,74,0.12);
 }
 label {
   font-family: var(--mono); font-size: 0.78rem; letter-spacing: 0.02em;
   color: var(--moss); display: block; margin-bottom: 5px; text-transform: uppercase;
 }
 
-/* ================= TABLE ================= */
 table { width: 100%; border-collapse: collapse; margin-top: 8px; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 0.9rem; }
 th { font-family: var(--mono); font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--moss); }
@@ -154,12 +188,8 @@ tbody tr:hover { background: rgba(69,98,74,0.05); }
 .error-msg { color: var(--danger); font-size: 0.86rem; margin-bottom: 10px; min-height: 1em; }
 .success-msg { color: var(--moss); font-size: 0.86rem; margin-bottom: 10px; min-height: 1em; }
 
-footer.app-footer {
-  text-align: center; color: var(--moss); font-family: var(--mono);
-  font-size: 0.78rem; padding: 40px 0 20px;
-}
+footer.app-footer { text-align: center; color: var(--moss); font-family: var(--mono); font-size: 0.78rem; padding: 40px 0 20px; }
 
-/* ================= AUTH CARD ================= */
 .auth-card {
   max-width: 420px; margin: 60px auto; padding: 30px;
   background: var(--paper-deep); border: 1.5px dashed var(--ink); border-radius: 4px;
@@ -171,13 +201,9 @@ footer.app-footer {
 @keyframes auth-in { from { opacity: 0; transform: translateY(16px) scale(0.98); } to { opacity: 1; transform: none; } }
 
 .dots::after { content: "."; animation: dots 1.2s steps(4, end) infinite; }
-@keyframes dots {
-  0% { content: "."; } 33% { content: ".."; } 66% { content: "..."; } 100% { content: "."; }
-}
+@keyframes dots { 0% { content: "."; } 33% { content: ".."; } 66% { content: "..."; } 100% { content: "."; } }
 
-@media (prefers-reduced-motion: no-preference) {
-  main { animation: page-in 0.4s var(--ease) both; }
-}
+@media (prefers-reduced-motion: no-preference) { main { animation: page-in 0.4s var(--ease) both; } }
 @keyframes page-in { from { opacity: 0; } to { opacity: 1; } }
 
 @media print { header.topbar, .no-print { display: none !important; } }
@@ -188,11 +214,9 @@ footer.app-footer {
   .grid { grid-template-columns: 1fr; }
 }
 
-/* ================= TOASTS ================= */
 #toast-container {
   position: fixed; bottom: 24px; right: 24px; z-index: 500;
-  display: flex; flex-direction: column; gap: 10px;
-  pointer-events: none;
+  display: flex; flex-direction: column; gap: 10px; pointer-events: none;
 }
 .toast {
   font-family: var(--mono); font-size: 0.85rem;
@@ -207,8 +231,6 @@ footer.app-footer {
 .toast-success { border-left: 3px solid var(--moss); }
 .toast-error { border-left: 3px solid var(--danger); background: #3a1f1f; }
 
-/* ================= BUTTON RIPPLE ================= */
-button, .btn { overflow: hidden; }
 .btn-ripple {
   position: absolute; border-radius: 50%;
   background: rgba(237,232,214,0.35);
@@ -217,30 +239,20 @@ button, .btn { overflow: hidden; }
 }
 @keyframes ripple-expand { to { transform: scale(1); opacity: 0; } }
 
-/* ================= CONFETTI BURST ================= */
 .confetti-bit {
   position: fixed; width: 7px; height: 7px; border-radius: 1px;
-  pointer-events: none; z-index: 600;
-  animation: confetti-fly 0.8s ease-out forwards;
+  pointer-events: none; z-index: 600; animation: confetti-fly 0.8s ease-out forwards;
 }
-@keyframes confetti-fly {
-  to { transform: translate(var(--dx), var(--dy)) rotate(280deg); opacity: 0; }
-}
+@keyframes confetti-fly { to { transform: translate(var(--dx), var(--dy)) rotate(280deg); opacity: 0; } }
 
-/* ================= AMBIENT LEAVES ================= */
-.ambient-leaf {
-  position: absolute; opacity: 0.14; pointer-events: none; z-index: 0;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .ambient-leaf { animation: leaf-drift 24s linear infinite; }
-}
+.ambient-leaf { position: absolute; opacity: 0.14; pointer-events: none; z-index: 0; }
+@media (prefers-reduced-motion: no-preference) { .ambient-leaf { animation: leaf-drift 24s linear infinite; } }
 @keyframes leaf-drift {
   0% { transform: translate(0,0) rotate(0deg); }
   50% { transform: translate(14px,-20px) rotate(140deg); }
   100% { transform: translate(0,0) rotate(360deg); }
 }
 
-/* ================= PASSWORD TOGGLE ================= */
 .pw-field { position: relative; }
 .pw-field input { padding-right: 42px; }
 .pw-toggle {
@@ -251,15 +263,13 @@ button, .btn { overflow: hidden; }
 }
 .pw-toggle:hover { color: var(--stamp); background: none; transform: none; }
 
-/* ================= PAGE FADE-IN ================= */
+/* opacity-0 + delayed force-visible keyframe = belt and braces against a slow
+   CDN leaving people staring at a blank paper-colored screen */
 body { opacity: 0; }
 body.page-ready { opacity: 1; transition: opacity 0.35s var(--ease); }
-/* Safety net: guarantees the page becomes visible even if every script
-   fails to load, so a slow/blocked CDN can never leave a blank screen. */
 body { animation: force-visible 0.3s 1.2s forwards; }
 @keyframes force-visible { to { opacity: 1; } }
 
-/* ================= EXTERNAL SITE LINK (footer) ================= */
 .footer-site-link {
   display: inline-block; margin-top: 6px; font-family: var(--mono);
   font-size: 0.76rem; color: var(--stamp); text-decoration: none;
@@ -268,7 +278,6 @@ body { animation: force-visible 0.3s 1.2s forwards; }
 }
 .footer-site-link:hover { opacity: 0.7; }
 
-/* ================= CUSTOM CURSOR ================= */
 #cursor-dot, #cursor-ring {
   position: fixed; top: 0; left: 0; pointer-events: none; z-index: 999;
   transform: translate(-50%, -50%); border-radius: 50%;
@@ -279,42 +288,27 @@ body { animation: force-visible 0.3s 1.2s forwards; }
   transition: width 0.25s var(--ease), height 0.25s var(--ease), border-color 0.25s var(--ease), opacity 0.25s var(--ease);
 }
 #cursor-ring.hover { width: 50px; height: 50px; border-color: var(--stamp); opacity: 0.9; }
-html.cursor-active, html.cursor-active a, html.cursor-active button, html.cursor-active input, html.cursor-active select, html.cursor-active textarea {
-  cursor: none;
-}
+html.cursor-active, html.cursor-active a, html.cursor-active button, html.cursor-active input, html.cursor-active select, html.cursor-active textarea { cursor: none; }
 @media (max-width: 860px) {
   #cursor-dot, #cursor-ring { display: none !important; }
   html.cursor-active, html.cursor-active a, html.cursor-active button { cursor: auto; }
 }
 
-/* ================= FALLING LEAVES (one-off burst) ================= */
-.falling-leaf {
-  position: fixed; top: -30px; z-index: 550; pointer-events: none;
-  animation: leaf-fall linear forwards;
-}
+.falling-leaf { position: fixed; top: -30px; z-index: 550; pointer-events: none; animation: leaf-fall linear forwards; }
 @keyframes leaf-fall {
   0% { transform: translateY(0) rotate(0deg); opacity: 0.9; }
   100% { transform: translateY(105vh) rotate(360deg); opacity: 0.2; }
 }
 
-/* ================= SKELETON LOADERS ================= */
 .skeleton {
   background: linear-gradient(100deg, var(--paper-deep) 30%, #f0ebd9 50%, var(--paper-deep) 70%);
-  background-size: 200% 100%;
-  border-radius: 4px;
-  animation: skeleton-shimmer 1.4s ease-in-out infinite;
+  background-size: 200% 100%; border-radius: 4px; animation: skeleton-shimmer 1.4s ease-in-out infinite;
 }
-@keyframes skeleton-shimmer {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
+@keyframes skeleton-shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
 .skeleton-card { height: 140px; margin-bottom: 16px; border: 1px solid var(--line); }
 .skeleton-row { height: 44px; margin-bottom: 8px; border: 1px solid var(--line); }
-@media (prefers-reduced-motion: reduce) {
-  .skeleton { animation: none; background: var(--paper-deep); }
-}
+@media (prefers-reduced-motion: reduce) { .skeleton { animation: none; background: var(--paper-deep); } }
 
-/* ================= PRELOADER ================= */
 #preloader {
   position: fixed; inset: 0; background: var(--paper); z-index: 998;
   display: flex; align-items: center; justify-content: center;
@@ -322,15 +316,11 @@ html.cursor-active, html.cursor-active a, html.cursor-active button, html.cursor
 }
 #preloader.done { opacity: 0; visibility: hidden; pointer-events: none; }
 #preloader .pl-stamp {
-  width: 84px; height: 84px; border-radius: 50%;
-  border: 3px solid var(--ink);
+  width: 84px; height: 84px; border-radius: 50%; border: 3px solid var(--ink);
   display: flex; align-items: center; justify-content: center; font-size: 2rem;
   transform: scale(0.5); opacity: 0;
 }
-@media (prefers-reduced-motion: no-preference) {
-  #preloader .pl-stamp { animation: pl-pop 0.5s cubic-bezier(.2,1.4,.4,1) 0.1s forwards; }
-}
+@media (prefers-reduced-motion: no-preference) { #preloader .pl-stamp { animation: pl-pop 0.5s cubic-bezier(.2,1.4,.4,1) 0.1s forwards; } }
 @keyframes pl-pop { to { transform: scale(1); opacity: 1; } }
-/* Safety net: preloader can never trap the page even with zero JS running. */
 #preloader { animation: pl-force-hide 0.3s 2.4s forwards; }
 @keyframes pl-force-hide { to { opacity: 0; visibility: hidden; pointer-events: none; } }
