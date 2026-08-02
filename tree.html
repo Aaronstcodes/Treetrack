@@ -228,7 +228,6 @@ async function loadLogs(tree) {
 
   const historyBody = document.getElementById("log-history");
   historyBody.innerHTML = rows.reverse().join("") || `<tr><td colspan="6" class="muted">No logs yet.</td></tr>`;
-  // Stagger the row-in animation
   [...historyBody.children].forEach((row, i) => { row.style.animationDelay = `${Math.min(i * 0.04, 0.4)}s`; });
 
   const ctx = document.getElementById("growth-chart");

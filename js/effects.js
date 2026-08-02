@@ -1,13 +1,7 @@
-// ==========================================================
-// TreeTrack — shared visual effects layer
-// Imported by every app page for consistent motion: toasts,
-// button ripple, confetti burst, and ambient drifting leaves.
-// Pure UI, zero backend dependency.
-// ==========================================================
+
 
 const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-// ---------------- Toast notifications ----------------
 let toastContainer;
 function ensureToastContainer() {
   if (toastContainer) return toastContainer;
@@ -30,7 +24,6 @@ export function showToast(message, type = "success") {
   }, 3200);
 }
 
-// ---------------- Button ripple ----------------
 function attachRipple(btn) {
   if (btn.dataset.rippleBound) return;
   btn.dataset.rippleBound = "1";
@@ -55,7 +48,6 @@ bindAllRipples();
 // Re-bind whenever new buttons get injected dynamically (e.g. tree cards)
 new MutationObserver(bindAllRipples).observe(document.body, { childList: true, subtree: true });
 
-// ---------------- Confetti-style success burst ----------------
 export function celebrate(originEl) {
   if (prefersReducedMotion) return;
   const rect = originEl ? originEl.getBoundingClientRect() : { left: window.innerWidth / 2, top: window.innerHeight / 2, width: 0, height: 0 };
@@ -77,7 +69,6 @@ export function celebrate(originEl) {
   }
 }
 
-// ---------------- Ambient drifting leaves ----------------
 export function addAmbientLeaves(container, count = 6) {
   if (prefersReducedMotion || !container) return;
   const spots = [
@@ -100,7 +91,6 @@ export function addAmbientLeaves(container, count = 6) {
   });
 }
 
-// ---------------- Falling leaves (one-off, e.g. on a celebration) ----------------
 export function fallingLeaves(n = 10) {
   if (prefersReducedMotion) return;
   for (let i = 0; i < n; i++) {
@@ -120,7 +110,6 @@ export function fallingLeaves(n = 10) {
   }
 }
 
-// ---------------- Custom cursor (desktop, fine pointer only) ----------------
 export function initCustomCursor() {
   if (prefersReducedMotion || !window.matchMedia("(pointer: fine)").matches) return;
   document.documentElement.classList.add("cursor-active");
@@ -155,9 +144,6 @@ export function initCustomCursor() {
   new MutationObserver(bindHover).observe(document.body, { childList: true, subtree: true });
 }
 
-// ---------------- Skeleton loader ----------------
-// Renders `count` shimmering placeholder cards into `container`, returns a
-// function that clears them — call it once real content is ready to render.
 export function showSkeleton(container, count = 3, kind = "card") {
   if (!container) return () => {};
   const nodes = [];
@@ -171,7 +157,6 @@ export function showSkeleton(container, count = 3, kind = "card") {
 }
 
 
-// ---------------- Page fade-in on load ----------------
 document.addEventListener("DOMContentLoaded", () => {
   document.body.classList.add("page-ready");
 });
